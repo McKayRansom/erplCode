@@ -365,12 +365,12 @@ int main(int argc, char* argv[]){
 
     printf("Connected. \n\n");
     
-    while(go){//continue until user chooses to exit
+    //while(go){//continue until user chooses to exit
 
       usleep(10000);//short sleep between commands
       go=CommandDialog(comPort);
 
-    }
+    //}
 
     printf("EXITING\n"); 
     CloseComPort(comPort);

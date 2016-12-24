@@ -49,6 +49,7 @@ void encoder_thread() {
                 for (int i=0; i<100; ++i) {
                     ePacket->timestamps[i] = getTimestamp();
                     ePacket->raw_cnts[i] = motor->updateCnt();
+                    usleep(17);
                 }
 
                 queue.push_tlm(ePacket);

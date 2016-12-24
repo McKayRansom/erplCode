@@ -23,6 +23,7 @@ int Purge(ComPortHandle comPortHandle){
 ComPortHandle OpenComPort(const char* comPortPath){
     ComPortHandle comPort = open(comPortPath, O_RDWR | O_NOCTTY);
     if (comPort== -1){ //Opening of port failed
+				printf("failed to open port!\n");
         throw 1;
     }
     //Get the current options for the port...
@@ -45,7 +46,7 @@ ComPortHandle OpenComPort(const char* comPortPath){
     options.c_lflag = 0; // raw input
     //Time-Outs -- won't work with NDELAY option in the call to open
     options.c_cc[VMIN]  = 0;      // block reading until RX x characers. If x = 0, it is non-blocking.
-    options.c_cc[VTIME] = 1;     // Inter-Character Timer -- i.e. timeout= x*.1 s
+    options.c_cc[VTIME] = 1 ;//changed from 1 to 10     // Inter-Character Timer -- i.e. timeout= x*.1 s
     //Set local mode and enable the receiver
     options.c_cflag |= (CLOCAL | CREAD);
     //Purge serial port buffers
@@ -74,7 +75,11 @@ int Imu::readComPort(unsigned char* bytes, int size){
     while (bytesRead<size) {
         temp = read(comPort, &bytes[bytesRead], size - bytesRead);
         bytesRead += temp;
-        if (bytesRead < size && temp == 0) throw 1;
+        if (bytesRead < size && temp == 0) {
+					printf("failed to read data, got: %u, expected: %u\n", bytesRead, size);
+				 	//throw 1;
+					break;
+				}
     }
     return bytesRead;     
 }
@@ -83,7 +88,10 @@ int Imu::readComPort(unsigned char* bytes, int size){
 // send bytes to the com port
 int Imu::writeComPort(unsigned char* bytes, int size){
     int temp = write(comPort, bytes, size);
-    if (temp <= 0) throw 1;
+    if (temp <= 0) {
+			printf("failed to write to com port\n");
+			throw 1;
+		}
     else return temp;
 }
 
@@ -120,6 +128,7 @@ char* scandev(){
         return device;
     }
     else{
+				printf("error finding device\n");
         throw 1;
         return device;
     }
@@ -140,6 +149,53 @@ Imu::Imu(){
             throw 1;
         }
     if(comPort < 0) throw 1;
+		sleep(1);
+		char buffer [30];
+		read(comPort, buffer, 30);
+		return;
+		Byte c1 = (Byte) 0xDB;
+		Byte c2 = (Byte) 0xA8;
+		Byte c3 = (Byte) 0xB9;
+		Byte c4 = 0;
+		//Byte c5 = 0;
+//		while (true) {
+		sleep(1);
+		printf("writing Command:%x\n", c1);
+		writeComPort(&c1, 1);
+		writeComPort(&c2, 1);
+		writeComPort(&c3, 1);
+		writeComPort(&c4, 1);
+		for (int i = 0; i < 16; i++) {
+			writeComPort(&c4, 1);
+		}
+		//writeComPort(&c4, 1);
+		//writeComPort(&c4, 1);
+		//writeComPort(&c4, 1);
+		//writeComPort(&c5, 1);
+		Byte data[18];
+		int size = readComPort(data, 18);
+		if (data[0] == 0xDB) {
+		printf("echo: %x\n", data[0]);
+//		printf("smalltime: %x\n", data[4]);
+		//Byte reversed[4];
+		//reversed[0] = data[4];
+		//reversed[1] = data[3];
+		//reversed[2] = data[2];
+		//reversed[3] = data[1];
+		//printf("1: %x\n", reversed[0]);
+		//printf("2: %x\n", reversed[1]);
+		//printf("3: %x\n", reversed[2]);
+		////printf("4: %x\n", reversed[3]);
+		//unsigned int time = *(unsigned int *) (&reversed);
+		//float time2 = time / 62500.00;
+		//printf("current time: %u\n", time);
+		//printf("current time2: %f\n", time2);
+		printf("Data cond1: %x\n", data[6]);
+		printf("Data cond2: %x\n", data[7]);
+		} else {
+			printf("failed :(\n");
+		}
+//}
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -152,7 +208,6 @@ void Imu::getdata(Byte (&data)[43]) {
     do {
         Purge(comPort); // flush port
         writeComPort(&dataCommand, 1); // write command to port
-
         size = readComPort(&data[0], 43);
     } while (size == 0);
 }
@@ -169,7 +224,6 @@ void Imu::getQuaternion(Byte (&data)[23]) {
     do {
         Purge(comPort); // flush port
         writeComPort(&quatCommand, 1); // write command to port
-
         size = readComPort(&data[0], 23);
     } while (size == 0);
 }
@@ -189,7 +243,7 @@ void Imu::printHexByte(char byte) {
 
 //When the IMU sends a packet of data, it sends a Checksum at the end
 //in order to catch corrupted data.  This function checks the Checksum.
-void Imu::calcChecksum(char* data, int size, uint16_t* checksum) {
+void Imu::calcChecksum(unsigned char* data, int size, uint16_t* checksum) {
     uint16_t checksum_byte1 = 0;
     uint16_t checksum_byte2 = 0;
     for(int i=0; i<size; i++) {
