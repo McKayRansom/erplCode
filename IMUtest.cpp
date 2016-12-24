@@ -4,6 +4,7 @@
 #include <fstream>
 #include <unistd.h>
 #include <stdlib.h>
+#include <chrono>
 
 //reverses bytes and converts to IEEE-754 Floating Point
 float convertToFloat (Byte* value) {
@@ -142,9 +143,12 @@ int main() {
 	try {
 		//keep track of how many bad packets we get
 		int badPackets = 0;
-		for (int j = 0; j < 100; j ++) {
+		int totalAttempts = 0;
+		auto startTime = std::chrono::steady_clock::now();
+		do {
 			ImuData accelData;
 			accelData = getData(imu);
+			totalAttempts++;
 			if (accelData.valid) {
 				//do something???
 			} else {
@@ -153,7 +157,7 @@ int main() {
 				//wait for a while
 				//this will usually give the connection time to
 				//reset or something so the next packet will be valid
-				sleep(1);
+				//sleep(1);
 			}
 			//quaternion stuff, TODO:should be moved into helper function
 		    // unsigned char imuQuat[23];
@@ -179,9 +183,10 @@ int main() {
 				// 	}
 			//wait between getting data
 			//this number is completely arbitrary and should probably be lower
-			usleep(20000);
-		}
-		printf("\n failed: %u out of 100 times\n", badPackets);
+			//usleep(20000);
+		} while (true);//(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count() 
+//< 1000);
+		printf("\n failed: %u out of %u times\n", badPackets, totalAttempts);
 	} catch (int e) {
 		//we got an error in the driver
 		//this usually doesn't actually mean we lost connection.
