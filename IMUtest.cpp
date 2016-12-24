@@ -31,7 +31,7 @@ struct ImuData {
 	// float magZ;
 	//time in seconds since the IMU was powered on.
 	float timer;
-	bool valid = false;
+	bool valid;
 };
 
 //helper funtion that gets data and converts it to floats
@@ -103,6 +103,7 @@ ImuData getData(Imu* imu) {
 		convertedData.timer = timerSeconds;
 		printf("timer: %f \n", timerSeconds);
 	}
+	return convertedData;
 }
 
 //quaternion structure for returning
@@ -149,10 +150,10 @@ int main() {
 			} else {
 				//data invalid
 				badPackets ++;
-				//wait for 100 microseconds
+				//wait for a while
 				//this will usually give the connection time to
 				//reset or something so the next packet will be valid
-				usleep(100);
+				sleep(1);
 			}
 			//quaternion stuff, TODO:should be moved into helper function
 		    // unsigned char imuQuat[23];
