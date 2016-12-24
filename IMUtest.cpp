@@ -4,6 +4,8 @@
 #include <fstream>
 #include <unistd.h>
 #include <stdlib.h>
+#include <ctime>
+//#include <time.h>
 #include <chrono>
 
 //reverses bytes and converts to IEEE-754 Floating Point
@@ -83,7 +85,7 @@ ImuData getData(Imu* imu) {
 		convertedData.valid = true;
 		unsigned char command = imuData[0];
 		printf("command: %x\n", command);
-		printf("byte1: %x\n", imuData[1]);
+		//printf("byte1: %x\n", imuData[1]);
 		convertedData.accelX = convertToFloat(imuData + 1);
 		convertedData.accelY = convertToFloat(imuData + 5);
 		convertedData.accelZ = convertToFloat(imuData + 9);
@@ -148,8 +150,8 @@ Quaternion getQuat(Imu* imu) {
 	 //checksum sent with the data
 	 //this is the expected value with valid data
 	 uint16_t expectedChecksum = 0;
-	 expectedChecksum = imuQuat[43 - 2] << 8; //upper Byte
-	 expectedChecksum += imuQuat[43 - 1];			//lower Byte
+	 expectedChecksum = imuQuat[23 - 2] << 8; //upper Byte
+	 expectedChecksum += imuQuat[23 - 1];			//lower Byte
 	 printf("checksum expected : %u\n", expectedChecksum);
 	 printf("actual checksum   : %u\n", actualChecksum);
 	 if (expectedChecksum != actualChecksum) {
@@ -158,9 +160,9 @@ Quaternion getQuat(Imu* imu) {
 	 } else {
 	 	printf("good checksum!\n");
 		convertedData.valid = true;
-		unsigned char command = imuData[0];
+		unsigned char command = imuQuat[0];
 		printf("command: %x\n", command);
-		printf("byte1: %x\n", imuQuat[1]);
+		//printf("byte1: %x\n", imuQuat[1]);
 		convertedData.q0 = convertToFloat(imuQuat + 1);
 		convertedData.q1 = convertToFloat(imuQuat + 5);
 		convertedData.q2 = convertToFloat(imuQuat + 9);
@@ -184,13 +186,24 @@ Quaternion getQuat(Imu* imu) {
 
 //function to get date and time from:
 //https://stackoverflow.com/questions/34963738/c11-get-current-date-and-time-as-string
-std::string get_date_string(std::chrono::time_point t) {
+std::string get_date_string(std::chrono::system_clock::time_point t) {
   auto as_time_t = std::chrono::system_clock::to_time_t(t);
   struct tm tm;
+	char some_buffer[40];
   if (::gmtime_r(&as_time_t, &tm))
     if (std::strftime(some_buffer, sizeof(some_buffer), "%F", &tm))
       return std::string{some_buffer};
-  throw std::runtime_error("Failed to get current date as string");
+  return std::string("Failed to get current date as string");
+}
+
+std::string current_time() {
+	time_t now = time(NULL);
+	struct tm tstruct;
+	char buf[40];
+	tstruct = *localtime(&now);
+	//format: HH:mm:ss
+	strftime(buf, sizeof(buf), "%X", &tstruct);
+	return buf;
 }
 
 int main() {
@@ -210,7 +223,9 @@ int main() {
 		printf("FAILED to connect to the IMU\n");
 		return 1;
 	}
-	logFile.open(get_date_string(std::system_clock::now()););
+	std::string dateTime = get_date_string(std::chrono::system_clock::now());
+	std::cout << dateTime << current_time() << std::endl;
+	logFile.open("log_" + dateTime + "_"+ current_time());
 	logFile << "Time, AccelX, AccelY, AccelZ, AngRateX, AngRateY, AngRateZ, MagX, MagY, MagZ, Time2, q0,q1,q2,q3\n";
 	try {
 		//keep track of how many bad packets we get
@@ -240,7 +255,7 @@ int main() {
 				}
 			}
 			Quaternion quatData;
-			quatData = getQuaternion(imu);
+			quatData = getQuat(imu);
 			totalAttempts++;
 			if (quatData.valid) {
 				logFile << quatData.timer << ", ";
@@ -270,9 +285,9 @@ int main() {
 		//Just something went wrong in receiving data
 		//TODO: reconnect instead of giving up entirely
 		printf("lost connection with the IMU%u\n", e);
-		myfile.close();
+		logFile.close();
 	}
-	myfile.close();
+	logFile.close();
 
 	delete imu;
 	return 0;
