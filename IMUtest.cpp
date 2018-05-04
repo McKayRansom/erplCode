@@ -9,10 +9,10 @@
 //reverses bytes and converts to IEEE-754 Floating Point
 float convertToFloat (Byte* value) {
 	Byte reversed[4];
-	reversed[0] = value[0];
-	reversed[1] = value[1];
-	reversed[2] = value[2];
-	reversed[3] = value[3];
+	reversed[0] = value[3];
+	reversed[1] = value[2];
+	reversed[2] = value[1];
+	reversed[3] = value[0];
 	return *(float*)(&reversed);
 }
 
@@ -92,8 +92,8 @@ ImuData getData(Imu* imu) {
 		printf("ay: %4.2f \n", convertedData.accelY);
 		printf("az: %4.2f \n", convertedData.accelZ);
 		convertedData.angRateX = convertToFloat(imuData + 1 + 16);
-		convertedData.angRateX = convertToFloat(imuData + 1 + 16 + 8);
-		convertedData.angRateX = convertToFloat(imuData +1 + 16 + 16);
+		convertedData.angRateY = convertToFloat(imuData + 1 + 16 + 8);
+		convertedData.angRateZ = convertToFloat(imuData +1 + 16 + 16);
 		Byte reversed[4];
 		reversed[0] = imuData[40];
 		reversed[1] = imuData[39];
@@ -135,7 +135,7 @@ int main() {
 		//break;
 	} catch (int e) {
 		printf("FAILED to connect to the IMU\n");
-		sleep(10);
+		return 1;
 	}
 
 	// myfile.open("log.txt");
@@ -184,8 +184,8 @@ int main() {
 			//wait between getting data
 			//this number is completely arbitrary and should probably be lower
 			//usleep(20000);
-		} while (true);//(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count() 
-//< 1000);
+		} while (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count()
+< 1000);
 		printf("\n failed: %u out of %u times\n", badPackets, totalAttempts);
 	} catch (int e) {
 		//we got an error in the driver
