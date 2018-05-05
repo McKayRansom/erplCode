@@ -228,6 +228,7 @@ int main() {
 	logFile.open("log_" + dateTime + "_"+ current_time());
 	logFile << "Time, AccelX, AccelY, AccelZ, AngRateX, AngRateY, AngRateZ, MagX, MagY, MagZ, Time2, q0,q1,q2,q3\n";
 	try {
+		while (true) {
 		//keep track of how many bad packets we get
 		int badPackets = 0;
 		int totalAttempts = 0;
@@ -278,7 +279,8 @@ int main() {
 			//usleep(20000);
 		} while (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count()
 < 1000);
-		printf("\n failed: %u out of %u times\n", badPackets, totalAttempts);
+		printf("\n failed: %u out of %u times\n in 1 second", badPackets, totalAttempts);
+		}
 	} catch (int e) {
 		//we got an error in the driver
 		//this usually doesn't actually mean we lost connection.
