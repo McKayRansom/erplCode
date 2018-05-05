@@ -25,11 +25,10 @@ struct ImuData {
 	float angRateX;
 	float angRateY;
 	float angRateZ;
-	//magnetometer data (probably don't need this)
-	//currently commented out
-	// float magX;
-	// float magY;
-	// float magZ;
+	//magnetometer data
+	float magX;
+	float magY;
+	float magZ;
 	//time in seconds since the IMU was powered on.
 	float timer;
 	bool valid;
@@ -86,14 +85,23 @@ ImuData getData(Imu* imu) {
 		printf("command: %x\n", command);
 		printf("byte1: %x\n", imuData[1]);
 		convertedData.accelX = convertToFloat(imuData + 1);
-		convertedData.accelY = convertToFloat(imuData + 1 + 8);
-		convertedData.accelZ = convertToFloat(imuData +1 + 16);
+		convertedData.accelY = convertToFloat(imuData + 5);
+		convertedData.accelZ = convertToFloat(imuData + 9);
 		printf("ax: %4.2f \n", convertedData.accelX);
 		printf("ay: %4.2f \n", convertedData.accelY);
 		printf("az: %4.2f \n", convertedData.accelZ);
-		convertedData.angRateX = convertToFloat(imuData + 1 + 16);
-		convertedData.angRateY = convertToFloat(imuData + 1 + 16 + 8);
-		convertedData.angRateZ = convertToFloat(imuData +1 + 16 + 16);
+		convertedData.angRateX = convertToFloat(imuData + 13);
+		convertedData.angRateY = convertToFloat(imuData + 17);
+		convertedData.angRateZ = convertToFloat(imuData + 21);
+		printf("angx: %4.2f \n", convertedData.angRateX);
+		printf("angy: %4.2f \n", convertedData.angRateY);
+		printf("angz: %4.2f \n", convertedData.angRateZ);
+		convertedData.magX = convertToFloat(imuData + 25);
+		convertedData.magY = convertToFloat(imuData + 29);
+		convertedData.magZ = convertToFloat(imuData + 33);
+		printf("mx: %4.2f \n", convertedData.magX);
+		printf("my: %4.2f \n", convertedData.magY);
+		printf("mz: %4.2f \n", convertedData.magZ);
 		Byte reversed[4];
 		reversed[0] = imuData[40];
 		reversed[1] = imuData[39];
@@ -108,24 +116,89 @@ ImuData getData(Imu* imu) {
 }
 
 //quaternion structure for returning
-// struct Quaternion	{
-// 	float q0;
-// 	float q1;
-// 	float q2;
-// 	float q3;
-// 	bool valid = false;
-// };
+struct Quaternion	{
+	float q0;
+	float q1;
+	float q2;
+	float q3;
+	float timer;
+	bool valid = false;
+};
 //
-// Quaternion getQuat(Imu* imu) {
-//
-// }
+Quaternion getQuat(Imu* imu) {
+
+	unsigned char imuQuat[23];
+	Quaternion convertedData;
+	imu->getQuaternion(imuQuat);
+    /* This buffer receives the following quaternion data:
+     *  Byte  1     0xDF    Command Echo
+     *  Bytes 2-5   q0      (IEEE-754 Floating Point)
+     *  Bytes 6-9   q1      (IEEE-754 Floating Point)
+     *  Bytes 10-13 q2      (IEEE-754 Floating Point)
+     *  Bytes 14-17 q3      (IEEE-754 Floating Point)
+     *  Bytes 18-21 Timer   32-bit Unsigned Integer
+     *  Bytes 22-23 Checksum
+     */
+	 //find the actual checksum of received data
+	 // by calculating sum of every Byte
+	 uint16_t actualChecksum = 0;
+	 for (int i = 0; i < 23 - 2; i++) {
+		 actualChecksum += imuQuat[i];
+	 }
+	 //checksum sent with the data
+	 //this is the expected value with valid data
+	 uint16_t expectedChecksum = 0;
+	 expectedChecksum = imuQuat[43 - 2] << 8; //upper Byte
+	 expectedChecksum += imuQuat[43 - 1];			//lower Byte
+	 printf("checksum expected : %u\n", expectedChecksum);
+	 printf("actual checksum   : %u\n", actualChecksum);
+	 if (expectedChecksum != actualChecksum) {
+	 	printf("*****************bad data ******************\n");
+		convertedData.valid = false;
+	 } else {
+	 	printf("good checksum!\n");
+		convertedData.valid = true;
+		unsigned char command = imuData[0];
+		printf("command: %x\n", command);
+		printf("byte1: %x\n", imuQuat[1]);
+		convertedData.q0 = convertToFloat(imuQuat + 1);
+		convertedData.q1 = convertToFloat(imuQuat + 5);
+		convertedData.q2 = convertToFloat(imuQuat + 9);
+		convertedData.q3 = convertToFloat(imuQuat + 13);
+		printf("q0: %4.2f \n", convertedData.q0);
+		printf("q1: %4.2f \n", convertedData.q1);
+		printf("q2: %4.2f \n", convertedData.q2);
+		printf("q3: %4.2f \n", convertedData.q3);
+		Byte reversed[4];
+		reversed[0] = imuQuat[20];
+		reversed[1] = imuQuat[19];
+		reversed[2] = imuQuat[18];
+		reversed[3] = imuQuat[17];
+		unsigned int timer = *(unsigned int *)(&reversed);
+		float timerSeconds = timer/62500.00;
+		convertedData.timer = timerSeconds;
+		printf("timer: %f \n", timerSeconds);
+	}
+	return convertedData;
+}
+
+//function to get date and time from:
+//https://stackoverflow.com/questions/34963738/c11-get-current-date-and-time-as-string
+std::string get_date_string(std::chrono::time_point t) {
+  auto as_time_t = std::chrono::system_clock::to_time_t(t);
+  struct tm tm;
+  if (::gmtime_r(&as_time_t, &tm))
+    if (std::strftime(some_buffer, sizeof(some_buffer), "%F", &tm))
+      return std::string{some_buffer};
+  throw std::runtime_error("Failed to get current date as string");
+}
 
 int main() {
 	//IMU object
 	Imu* imu = nullptr;
 
-	// log file (currently unused)
-	// std::ofstream myfile;
+	// log file
+	std::ofstream logFile;
 
 	// IMU driver will throw an error if it can't connect to the imu
 	try {
@@ -137,9 +210,8 @@ int main() {
 		printf("FAILED to connect to the IMU\n");
 		return 1;
 	}
-
-	// myfile.open("log.txt");
-	// myfile << "Start\n";
+	logFile.open(get_date_string(std::system_clock::now()););
+	logFile << "Time, AccelX, AccelY, AccelZ, AngRateX, AngRateY, AngRateZ, MagX, MagY, MagZ, Time2, q0,q1,q2,q3\n";
 	try {
 		//keep track of how many bad packets we get
 		int badPackets = 0;
@@ -150,37 +222,42 @@ int main() {
 			accelData = getData(imu);
 			totalAttempts++;
 			if (accelData.valid) {
-				//do something???
+				logFile << accelData.timer << ", ";
+				logFile << accelData.accelX << ", ";
+				logFile << accelData.accelY << ", ";
+				logFile << accelData.accelZ << ", ";
+				logFile << accelData.angRateX << ", ";
+				logFile << accelData.angRateY << ", ";
+				logFile << accelData.angRateZ << ", ";
+				logFile << accelData.magX << ", ";
+				logFile << accelData.magY << ", ";
+				logFile << accelData.magZ << ", ";
 			} else {
 				//data invalid
 				badPackets ++;
-				//wait for a while
-				//this will usually give the connection time to
-				//reset or something so the next packet will be valid
-				//sleep(1);
+				for (int i =0; i<10;i++) {
+					logFile << ", ";
+				}
 			}
-			//quaternion stuff, TODO:should be moved into helper function
-		    // unsigned char imuQuat[23];
-				// imu->getQuaternion(imuQuat);
-		    //     /* This buffer receives the following quaternion data:
-		    //      *  Byte  1     0xDF    Command Echo
-		    //      *  Bytes 2-5   q0      (IEEE-754 Floating Point)
-		    //      *  Bytes 6-9   q1      (IEEE-754 Floating Point)
-		    //      *  Bytes 10-13 q2      (IEEE-754 Floating Point)
-		    //      *  Bytes 14-17 q3      (IEEE-754 Floating Point)
-		    //      *  Bytes 18-21 Timer   32-bit Unsigned Integer
-		    //      *  Bytes 22-23 Checksum
-		    //      * NOTE: this data will be parsed by COSMOS when it arrives
-		    //      */
-				// 	command = imuQuat[0];
-				// 	if (command == 0xDF) {
-				// 	float q0 = convertToFloat(imuQuat + 1);
-				// 	printf("command: %x\n", command);
-				// 	printf("q0: %4.2f \n", q0);
-				//
-				//
-				// 	printf("\n");
-				// 	}
+			Quaternion quatData;
+			quatData = getQuaternion(imu);
+			totalAttempts++;
+			if (quatData.valid) {
+				logFile << quatData.timer << ", ";
+				logFile << quatData.q0 << ", ";
+				logFile << quatData.q1 << ", ";
+				logFile << quatData.q2 << ", ";
+				logFile << quatData.q3;
+			} else {
+				//data invalid
+				badPackets ++;
+				for (int i =0; i<5;i++) {
+					logFile << ", ";
+				}
+			}
+			logFile << std::endl;
+			logFile.flush();
+
 			//wait between getting data
 			//this number is completely arbitrary and should probably be lower
 			//usleep(20000);
@@ -193,9 +270,9 @@ int main() {
 		//Just something went wrong in receiving data
 		//TODO: reconnect instead of giving up entirely
 		printf("lost connection with the IMU%u\n", e);
-		// myfile.close();
+		myfile.close();
 	}
-	// myfile.close();
+	myfile.close();
 
 	delete imu;
 	return 0;
